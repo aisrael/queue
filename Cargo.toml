@@ -1,0 +1,4 @@
+[package]
+name = "queue"
+version = "0.0.1"
+authors = ["Alistair A. Israel <aisrael@gmail.com>"]
