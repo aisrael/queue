@@ -2,3 +2,10 @@
 name = "queue"
 version = "0.0.1"
 authors = ["Alistair A. Israel <aisrael@gmail.com>"]
+
+[[bin]]
+name = "queue"
+
+[dependencies]
+getopts = "0.2.9"
+unix_socket = "0.3.2"
