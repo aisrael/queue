@@ -2,12 +2,7 @@
 
 extern crate getopts;
 extern crate unix_socket;
-
 extern crate libc;
-use libc::size_t;
-use libc::c_char;
-use libc::c_int;
-use libc::mode_t;
 
 use std::env;
 use std::ffi::CString;
@@ -20,6 +15,14 @@ use std::io::LineWriter;
 use std::io::Write;
 use std::net::Shutdown;
 use std::path::Path;
+
+use libc::size_t;
+use libc::c_char;
+use libc::c_int;
+use libc::mode_t;
+use libc::exit;
+use libc::consts::os::posix88::SIGINT;
+use libc::funcs::posix01::signal::signal;
 
 // unstable
 use std::fs::PathExt;
@@ -127,12 +130,14 @@ fn main() {
         }
     } else {
         let res = mkfifo(PATH, 0o666);
+        unsafe { signal(SIGINT, goodbye as u64); }
         println!("mkfifo(PATH, 0o666) => {}", res);
-        // let listener = unix_socket::UnixListener::bind(PATH).unwrap_or_else(
-        //     |e| panic!("UnixListener::bind error: {}", e.to_string())
-        // );
         server(PATH);
-        unlink(PATH);
     }
 
+}
+
+extern fn goodbye() {
+    unlink(PATH);
+    unsafe { exit(1); }
 }
