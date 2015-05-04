@@ -30,15 +30,11 @@ fn read_lines(unix_stream: UnixStream) {
     let mut reader = BufReader::new(unix_stream);
     loop {
         let s = &mut String::new();
-        match reader.read_line(s) {
-            Err(e) => panic!("reader.read_line error: {}", e.to_string()),
-            Ok(n) => {
-                if n == 0 {
-                    break;
-                } else {
-                    println!("Got {} bytes: \"{}\"", n, s);
-                }
-            }
+        let n = reader.read_line(s).unwrap_or_else({|e| panic!("reader.read_line error: {}", e.to_string()) });
+        if n == 0 {
+            break;
+        } else {
+            println!("Got {} bytes: \"{}\"", n, s);
         }
     }
     println!("loop {{}} ended");
@@ -48,12 +44,8 @@ fn server(listener: UnixListener) {
     loop {
         match listener.incoming().next() {
             Some(result) => {
-                match result {
-                    Err(e) => panic!("UnixListener::bind error: {}", e.to_string()),
-                    Ok(mut unix_stream) => {
-                        read_lines(unix_stream);
-                    },
-                }
+                let unix_stream = result.unwrap_or_else({|e| panic!("UnixListener::bind() error: {}", e.to_string()) });
+                read_lines(unix_stream);
             },
             None => { }
         }
@@ -62,13 +54,9 @@ fn server(listener: UnixListener) {
 }
 
 fn queue(s: &str) {
-    match UnixStream::connect(PATH) {
-        Err(e) => { panic!(e.to_string()) },
-        Ok(unix_stream) => {
-            let mut writer = LineWriter::new(unix_stream);
-            write!(writer, "{}", s);
-        }
-    }
+    let unix_stream = UnixStream::connect(PATH).unwrap_or_else({|e| panic!("UnixStream::connect() error: {}", e.to_string()) });
+    let mut writer = LineWriter::new(unix_stream);
+    write!(writer, "{}", s);
 }
 
 fn main() {
@@ -78,10 +66,7 @@ fn main() {
     opts.optflag("h", "help", "print this help menu");
     opts.optflag("c", "command", "execute the given command on the enqueued arguments");
 
-    let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(e) => { panic!(e.to_string()) }
-    };
+    let matches = opts.parse(&args[1..]).unwrap_or_else({|e| panic!(e.to_string()) });
 
     if matches.opt_present("h") {
         print_usage(&args[0], opts);
@@ -96,12 +81,8 @@ fn main() {
             print_usage(&args[0], opts);
         }
     } else {
-        match unix_socket::UnixListener::bind(PATH) {
-            Err(e) => panic!("UnixListener::bind error: {}", e.to_string()),
-            Ok(mut listener)  => {
-                server(listener);
-            }
-        }
+        let listener = unix_socket::UnixListener::bind(PATH).unwrap_or_else({|e| panic!("UnixListener::bind error: {}", e.to_string())});
+        server(listener);
     }
 
 }
