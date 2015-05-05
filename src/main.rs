@@ -7,7 +7,6 @@ extern crate libc;
 mod sys;
 
 use std::env;
-use std::ffi::CString;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::BufRead;
@@ -26,24 +25,8 @@ use std::fs::PathExt;
 // external
 use getopts::Options;
 
+// TODO allow this as option
 const PATH: &'static str = "/tmp/queue";
-
-fn mkfifo(path: &str, mode: u16) -> i32 {
-    let c_path = CString::new(path).unwrap();
-    let p_path = c_path.as_ptr();
-    unsafe {
-        return sys::mkfifo(p_path, mode);
-    }
-}
-
-fn unlink(path: &str) -> i32 {
-    println!("unlink(\"{}\")", path);
-    let c_path = CString::new(path).unwrap();
-    let p_path = c_path.as_ptr();
-    unsafe {
-        return sys::unlink(p_path);
-    }
-}
 
 fn print_usage(program: &str, opts: Options) {
   let brief = format!("Usage: {} [options]", program);
@@ -55,14 +38,11 @@ fn handle(result: std::io::Result<String>) {
     println!("Got \"{}\"", s);
 }
 
-fn read_lines(file: &File) {
+fn read_lines(file: File) {
     loop {
-        let reader = BufReader::new(file);
-        match reader.lines().next() {
-            Some(r) => {
-                handle(r);
-            }
-            None => {}
+        let reader = BufReader::new(&file);
+        for line in reader.lines() {
+            handle(line);
         }
     }
 }
@@ -71,7 +51,7 @@ fn server(path: &str) {
     match File::open(path) {
         Ok(f) => {
             println!("\"{}\" opened", path);
-            read_lines(&f);
+            read_lines(f);
         },
         Err(e) => { panic!("File::open(\"path\") error: {}", e.to_string()) }
     }
@@ -111,7 +91,7 @@ fn main() {
             print_usage(&args[0], opts);
         }
     } else {
-        let res = mkfifo(PATH, 0o666);
+        let res = sys::mkfifo(PATH, 0o666);
         unsafe { signal(SIGINT, goodbye as u64); }
         println!("mkfifo(PATH, 0o666) => {}", res);
         server(PATH);
@@ -120,6 +100,6 @@ fn main() {
 }
 
 extern fn goodbye() {
-    unlink(PATH);
+    sys::unlink(PATH);
     unsafe { exit(1); }
 }
