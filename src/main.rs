@@ -9,11 +9,9 @@ mod sys;
 use std::env;
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::LineWriter;
-use std::io::Write;
+use std::io::{BufRead, BufReader, LineWriter, stdout, Write};
 use std::path::Path;
+use std::process::Command;
 
 use libc::exit;
 use libc::consts::os::posix88::SIGINT;
@@ -33,27 +31,29 @@ fn print_usage(program: &str, opts: Options) {
   println!("{}", opts.usage(&brief));
 }
 
-fn handle(result: std::io::Result<String>) {
-    let s = result.unwrap_or_else(|e| panic!(e.to_string()));
-    println!("Got \"{}\"", s);
-}
-
-fn read_lines(file: File) {
-    loop {
-        let reader = BufReader::new(&file);
-        for line in reader.lines() {
-            handle(line);
+fn handle(s: String) {
+    match Command::new("sh").arg("-c").arg(s).output() {
+        Ok(output) => {
+            #[allow(unused_results)]
+            std::io::stdout().write(&*output.stdout);
+        },
+        Err(e) => {
+            panic!("failed to execute process: {}", e);
         }
     }
 }
 
 fn server(path: &str) {
-    match File::open(path) {
-        Ok(f) => {
-            println!("\"{}\" opened", path);
-            read_lines(f);
-        },
-        Err(e) => { panic!("File::open(\"path\") error: {}", e.to_string()) }
+    loop {
+        match File::open(path) {
+            Ok(file) => {
+                let reader = BufReader::new(&file);
+                for line in reader.lines() {
+                    handle(line.unwrap_or_else(|e| panic!(e.to_string())));
+                }
+            },
+            Err(e) => { panic!("File::open(\"path\") error: {}", e.to_string()) }
+        }
     }
 }
 
