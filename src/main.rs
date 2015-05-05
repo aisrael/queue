@@ -4,6 +4,8 @@ extern crate getopts;
 extern crate unix_socket;
 extern crate libc;
 
+mod sys;
+
 use std::env;
 use std::ffi::CString;
 use std::fs::File;
@@ -25,22 +27,6 @@ use std::fs::PathExt;
 use getopts::Options;
 
 const PATH: &'static str = "/tmp/queue";
-
-// TODO Move to its own file
-mod sys {
-
-extern crate libc;
-
-    use libc::c_char;
-    use libc::c_int;
-    use libc::mode_t;
-
-    extern "system" {
-        pub fn mkfifo(path: *const c_char, mode: mode_t) -> c_int;
-        pub fn unlink(path: *const c_char) -> c_int;
-    }
-
-}
 
 fn mkfifo(path: &str, mode: u16) -> i32 {
     let c_path = CString::new(path).unwrap();
