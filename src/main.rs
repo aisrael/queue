@@ -8,18 +8,12 @@ use std::env;
 use std::ffi::CString;
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::Read;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::LineWriter;
 use std::io::Write;
-use std::net::Shutdown;
 use std::path::Path;
 
-use libc::size_t;
-use libc::c_char;
-use libc::c_int;
-use libc::mode_t;
 use libc::exit;
 use libc::consts::os::posix88::SIGINT;
 use libc::funcs::posix01::signal::signal;
@@ -30,8 +24,6 @@ use std::fs::PathExt;
 // external
 use getopts::Options;
 
-use unix_socket::{UnixListener, UnixStream};
-
 const PATH: &'static str = "/tmp/queue";
 
 // TODO Move to its own file
@@ -39,7 +31,6 @@ mod sys {
 
 extern crate libc;
 
-    use libc::size_t;
     use libc::c_char;
     use libc::c_int;
     use libc::mode_t;
@@ -51,11 +42,11 @@ extern crate libc;
 
 }
 
-fn mkfifo(path: &str, mode: i16) -> i32 {
+fn mkfifo(path: &str, mode: u16) -> i32 {
     let c_path = CString::new(path).unwrap();
     let p_path = c_path.as_ptr();
     unsafe {
-        return sys::mkfifo(p_path, 0o666);
+        return sys::mkfifo(p_path, mode);
     }
 }
 
@@ -73,26 +64,31 @@ fn print_usage(program: &str, opts: Options) {
   println!("{}", opts.usage(&brief));
 }
 
+fn handle(result: std::io::Result<String>) {
+    let s = result.unwrap_or_else(|e| panic!(e.to_string()));
+    println!("Got \"{}\"", s);
+}
+
 fn read_lines(file: &File) {
     loop {
-        let mut reader = BufReader::new(file);
+        let reader = BufReader::new(file);
         match reader.lines().next() {
             Some(r) => {
-                let s = r.unwrap_or_else(|e| panic!(e.to_string()));
-                println!("Got \"{}\"", s);
+                handle(r);
             }
             None => {}
         }
     }
-    println!("loop {{}} ended");
 }
 
 fn server(path: &str) {
-    let mut f = File::open(path).unwrap_or_else(
-        |e| panic!("File::open(\"path\") error: {}", e.to_string())
-    );
-    println!("\"{}\" opened", path);
-    read_lines(&f);
+    match File::open(path) {
+        Ok(f) => {
+            println!("\"{}\" opened", path);
+            read_lines(&f);
+        },
+        Err(e) => { panic!("File::open(\"path\") error: {}", e.to_string()) }
+    }
 }
 
 fn queue(s: &str) {
@@ -102,7 +98,7 @@ fn queue(s: &str) {
                 |e| panic!("OpenOptions::open() error: {}", e.to_string())
             );
     let mut writer = LineWriter::new(file);
-    write!(writer, "{}", s);
+    write!(writer, "{}\n", s).ok();
 }
 
 fn main() {
