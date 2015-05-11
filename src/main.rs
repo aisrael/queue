@@ -1,15 +1,21 @@
-#![feature(path_ext)]
+#![feature(path_ext, libc)]
 
 extern crate getopts;
 extern crate unix_socket;
+extern crate libc;
+
+mod sys;
 
 use std::env;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::LineWriter;
-use std::io::Write;
-use std::net::Shutdown;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::{BufRead, BufReader, LineWriter, stdout, Write};
 use std::path::Path;
+use std::process::Command;
+
+use libc::exit;
+use libc::consts::os::posix88::SIGINT;
+use libc::funcs::posix01::signal::signal;
 
 // unstable
 use std::fs::PathExt;
@@ -17,8 +23,7 @@ use std::fs::PathExt;
 // external
 use getopts::Options;
 
-use unix_socket::{UnixListener, UnixStream};
-
+// TODO allow this as option
 const PATH: &'static str = "/tmp/queue";
 
 fn print_usage(program: &str, opts: Options) {
@@ -26,37 +31,40 @@ fn print_usage(program: &str, opts: Options) {
   println!("{}", opts.usage(&brief));
 }
 
-fn read_lines(unix_stream: UnixStream) {
-    let mut reader = BufReader::new(unix_stream);
-    loop {
-        let s = &mut String::new();
-        let n = reader.read_line(s).unwrap_or_else({|e| panic!("reader.read_line error: {}", e.to_string()) });
-        if n == 0 {
-            break;
-        } else {
-            println!("Got {} bytes: \"{}\"", n, s);
+fn handle(s: String) {
+    match Command::new("sh").arg("-c").arg(s).output() {
+        Ok(output) => {
+            #[allow(unused_results)]
+            std::io::stdout().write(&*output.stdout);
+        },
+        Err(e) => {
+            panic!("failed to execute process: {}", e);
         }
     }
-    println!("loop {{}} ended");
 }
 
-fn server(listener: UnixListener) {
+fn server(path: &str) {
     loop {
-        match listener.incoming().next() {
-            Some(result) => {
-                let unix_stream = result.unwrap_or_else({|e| panic!("UnixListener::bind() error: {}", e.to_string()) });
-                read_lines(unix_stream);
+        match File::open(path) {
+            Ok(file) => {
+                let reader = BufReader::new(&file);
+                for line in reader.lines() {
+                    handle(line.unwrap_or_else(|e| panic!(e.to_string())));
+                }
             },
-            None => { }
+            Err(e) => { panic!("File::open(\"path\") error: {}", e.to_string()) }
         }
-        println!("listener.incoming().next() done");
     }
 }
 
 fn queue(s: &str) {
-    let unix_stream = UnixStream::connect(PATH).unwrap_or_else({|e| panic!("UnixStream::connect() error: {}", e.to_string()) });
-    let mut writer = LineWriter::new(unix_stream);
-    write!(writer, "{}", s);
+    let file = OpenOptions::new()
+            .write(true)
+            .open(PATH).unwrap_or_else(
+                |e| panic!("OpenOptions::open() error: {}", e.to_string())
+            );
+    let mut writer = LineWriter::new(file);
+    write!(writer, "{}\n", s).ok();
 }
 
 fn main() {
@@ -66,7 +74,9 @@ fn main() {
     opts.optflag("h", "help", "print this help menu");
     opts.optflag("c", "command", "execute the given command on the enqueued arguments");
 
-    let matches = opts.parse(&args[1..]).unwrap_or_else({|e| panic!(e.to_string()) });
+    let matches = opts.parse(&args[1..]).unwrap_or_else(
+        |e| panic!(e.to_string())
+    );
 
     if matches.opt_present("h") {
         print_usage(&args[0], opts);
@@ -81,8 +91,15 @@ fn main() {
             print_usage(&args[0], opts);
         }
     } else {
-        let listener = unix_socket::UnixListener::bind(PATH).unwrap_or_else({|e| panic!("UnixListener::bind error: {}", e.to_string())});
-        server(listener);
+        let res = sys::mkfifo(PATH, 0o666);
+        unsafe { signal(SIGINT, goodbye as u64); }
+        println!("mkfifo(PATH, 0o666) => {}", res);
+        server(PATH);
     }
 
+}
+
+extern fn goodbye() {
+    sys::unlink(PATH);
+    unsafe { exit(1); }
 }
