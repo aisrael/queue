@@ -31,10 +31,11 @@ fn print_usage(program: &str, opts: Options) {
   println!("{}", opts.usage(&brief));
 }
 
+#[allow(unused_must_use)]
 fn handle(s: String) {
     match Command::new("sh").arg("-c").arg(s).output() {
-        Ok(output) => {
-            #[allow(unused_results)]
+        Ok(output) =>
+        {
             std::io::stdout().write(&*output.stdout);
         },
         Err(e) => {
