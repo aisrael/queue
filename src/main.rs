@@ -91,7 +91,7 @@ fn main() {
             print_usage(&args[0], opts);
         }
     } else {
-        let res = sys::mkfifo(PATH, 0o666);
+        let _ = sys::mkfifo(PATH, 0o666);
         unsafe { signal(SIGINT, goodbye as u64); }
         server(PATH);
     }

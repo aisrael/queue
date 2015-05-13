@@ -1,6 +1,6 @@
 [root]
 name = "queue"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "getopts 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "unix_socket 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
