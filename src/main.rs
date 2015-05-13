@@ -85,16 +85,14 @@ fn main() {
     }
 
     if Path::new(PATH).exists() {
-        println!("\"{}\" exists", PATH);
         if !matches.free.is_empty() {
-            queue(&matches.free[0]);
+            queue(&matches.free.connect(" "));
         } else {
             print_usage(&args[0], opts);
         }
     } else {
         let res = sys::mkfifo(PATH, 0o666);
         unsafe { signal(SIGINT, goodbye as u64); }
-        println!("mkfifo(PATH, 0o666) => {}", res);
         server(PATH);
     }
 
